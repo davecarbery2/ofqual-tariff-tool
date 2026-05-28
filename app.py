@@ -95,6 +95,23 @@ def parse_qans(raw):
 
     return pd.DataFrame({"QANs": dedup}), invalid
 
+def grade_length(g):
+    return len(split_grades(g))
+
+def grade_pattern_key(g):
+    """
+    Converts grade into a structured comparison key.
+    Ensures canonical ordering (UCAS-style)
+    """
+    parts = split_grades(g)
+
+    order = {"D*": 0, "D": 1, "M": 2, "P": 3}
+
+    # Sort parts best → worst
+    parts_sorted = sorted(parts, key=lambda x: order.get(x, 99))
+
+    # Return tuple for comparison
+    return tuple(order.get(p, 99) for p in parts_sorted)
 
 def generate_grades_from_scale(scale):
     if pd.isna(scale):
@@ -103,6 +120,29 @@ def generate_grades_from_scale(scale):
     grades = re.split(r"[\/,\s]+", str(scale))
     return [g.strip() for g in grades if g.strip()]
 
+def order_grade_components(g):
+    """
+    Reorder components inside a grade to a canonical UCAS format:
+    D* > D > M > P
+    """
+
+    parts = split_grades(g)
+
+    order = {
+        "D*": 0,
+        "D": 1,
+        "M": 2,
+        "P": 3,
+        "A*": 0,
+        "A": 1,
+        "B": 2,
+        "C": 3,
+        "E": 4
+    }
+
+    parts_sorted = sorted(parts, key=lambda x: order.get(x, 99))
+
+    return "".join(parts_sorted)
 
 def split_grades(grade):
     if grade is None:
@@ -160,8 +200,14 @@ def get_size_band(glh):
 def collapse(g):
     grades = g["Grade"].tolist()
     tariffs = g["TariffNum"].tolist()
-
-    pairs = sorted(zip(grades, tariffs), key=lambda x: x[1], reverse=True)
+    
+    pairs = sorted(
+        zip(grades, tariffs),
+        key=lambda x: (
+            -x[1],                     # tariff DESC
+            grade_pattern_key(x[0])    # canonical order
+        )
+    )
 
     QAN, Title = g.name
 
@@ -283,8 +329,9 @@ for _, r in DF_f.iterrows():
 
     for g in grades:
         new_row = r.copy()
-        new_row["Grade"] = g
+        new_row["Grade"] = order_grade_components(g)
         rows.append(new_row)
+
 
 DF2 = pd.DataFrame(rows)
 
