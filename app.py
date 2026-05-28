@@ -199,22 +199,6 @@ def split_grades(grade):
 
     return parts
 
-def btec_tariff(grade, size_band):
-    """
-    Calculates tariff for BTEC-style grades.
-    Works for both single grades (D, M, P) and composite (D*DD, MMM, etc.)
-    """
-    if grade is None or size_band is None:
-        return None
-
-    parts = split_grades(grade)
-    
-    try:
-        base_score = sum(BTEC_BASE[g] for g in parts)
-        return base_score * size_band
-    except KeyError:
-        return None
-
 def calculate_tariff(row):
 
     grade = row["Grade"]
@@ -229,24 +213,6 @@ def calculate_tariff(row):
     base_score = sum(BTEC_BASE.get(g, ALEVEL_BASE.get(g, 0)) for g in parts)
 
     return base_score * size_band
-    
-def alevel_tariff(grade):
-    if grade is None:
-        return None
-    return ALEVEL_BASE.get(grade)
-
-
-def cambridge_tariff(grade, size_band):
-    CAMBRIDGE_MAP = {
-        "D1": 14, "D2": 14, "D3": 13,
-        "M1": 11, "M2": 10, "M3": 9,
-        "P1": 7, "P2": 6, "P3": 5
-    }
-
-    if grade is None or size_band is None:
-        return None
-
-    return CAMBRIDGE_MAP.get(grade) * size_band if grade in CAMBRIDGE_MAP else None
 
 def generate_grades(scale_type):
     
@@ -263,21 +229,23 @@ def generate_grades(scale_type):
         return []
 
 def collapse(g):
-    """
-    Collapse grouped tariff rows into aggregated grade/tariff strings.
-    """
 
     grades = g["Grade"].tolist()
     tariffs = g["TariffNum"].tolist()
 
-    # sort by tariff descending
     pairs = sorted(zip(grades, tariffs), key=lambda x: x[1], reverse=True)
 
+    # ✅ get QAN and Title from group name instead
+    QAN, Title = g.name
+
     return pd.Series({
-        "QAN": g["QAN"].iloc[0],
-        "Title": g["Title"].iloc[0],
-        "Grade": "/".join([str(p[0]) for p in pairs]),
-        "Tariff": "/".join([str(int(p[1])) if pd.notna(p[1]) else "NA" for p in pairs])
+        "QAN": QAN,
+        "Title": Title,
+        "Grade": "/".join(str(p[0]) for p in pairs),
+        "Tariff": "/".join(
+            str(int(p[1])) if pd.notna(p[1]) else "NA"
+            for p in pairs
+        )
     })
 
 
