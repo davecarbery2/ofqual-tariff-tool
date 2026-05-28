@@ -140,7 +140,7 @@ def classify_scale(scale):
     if "D*D*D" in scale or "DDD" in scale:
         return "BTEC_COMPOSITE_3"
 
-    if all(x in scale for x in ["PP", "PM", "MM", "DD"]):
+    if "D*D" in scale or "DD" in scale:
         return "BTEC_COMPOSITE_2"
 
     if "D*/D/M/P" in scale or "P/M/D" in scale:
@@ -199,6 +199,22 @@ def split_grades(grade):
 
     return parts
 
+def btec_tariff(grade, size_band):
+    """
+    Calculates tariff for BTEC-style grades.
+    Works for both single grades (D, M, P) and composite (D*DD, MMM, etc.)
+    """
+    if grade is None or size_band is None:
+        return None
+
+    parts = split_grades(grade)
+    
+    try:
+        base_score = sum(BTEC_BASE[g] for g in parts)
+        return base_score * size_band
+    except KeyError:
+        return None
+
 def calculate_tariff(row):
 
     grade = row["Grade"]
@@ -213,6 +229,24 @@ def calculate_tariff(row):
     base_score = sum(BTEC_BASE.get(g, ALEVEL_BASE.get(g, 0)) for g in parts)
 
     return base_score * size_band
+    
+def alevel_tariff(grade):
+    if grade is None:
+        return None
+    return ALEVEL_BASE.get(grade)
+
+
+def cambridge_tariff(grade, size_band):
+    CAMBRIDGE_MAP = {
+        "D1": 14, "D2": 14, "D3": 13,
+        "M1": 11, "M2": 10, "M3": 9,
+        "P1": 7, "P2": 6, "P3": 5
+    }
+
+    if grade is None or size_band is None:
+        return None
+
+    return CAMBRIDGE_MAP.get(grade) * size_band if grade in CAMBRIDGE_MAP else None
 
 def generate_grades(scale_type):
     
@@ -229,23 +263,21 @@ def generate_grades(scale_type):
         return []
 
 def collapse(g):
+    """
+    Collapse grouped tariff rows into aggregated grade/tariff strings.
+    """
 
     grades = g["Grade"].tolist()
     tariffs = g["TariffNum"].tolist()
 
+    # sort by tariff descending
     pairs = sorted(zip(grades, tariffs), key=lambda x: x[1], reverse=True)
 
-    # ✅ get QAN and Title from group name instead
-    QAN, Title = g.name
-
     return pd.Series({
-        "QAN": QAN,
-        "Title": Title,
-        "Grade": "/".join(str(p[0]) for p in pairs),
-        "Tariff": "/".join(
-            str(int(p[1])) if pd.notna(p[1]) else "NA"
-            for p in pairs
-        )
+        "QAN": g["QAN"].iloc[0],
+        "Title": g["Title"].iloc[0],
+        "Grade": "/".join([str(p[0]) for p in pairs]),
+        "Tariff": "/".join([str(int(p[1])) if pd.notna(p[1]) else "NA" for p in pairs])
     })
 
 
@@ -290,7 +322,7 @@ if qans_df is not None:
 if st.session_state.get("invalid"):
     st.warning(f"{len(st.session_state['invalid'])} invalid entries removed")
 
-with st.expander("✅ Inspect Parsed QANs", expanded=False):
+with st.expander("✅ Parsed QANs", expanded=True):
     st.dataframe(qans_df, hide_index=True)
 
 col1, col2 = st.columns([4,1])
@@ -324,8 +356,16 @@ if text_input:
     st.session_state["qans_df"] = qdf    # <<<<<<<<<< IMPORTANT
     st.session_state["invalid"] = invalid
 
+# SHOW PARSED QANs
+with st.expander("Parsed QANs", expanded=True):
+    qans_df = st.session_state.get("qans_df")
+    if qans_df is not None and not qans_df.empty:
+        st.dataframe(qans_df, hide_index=True)
+    else:
+        st.write("No valid QANs yet.")
+
 if st.session_state.get("invalid"):
-    with st.expander("Inspect Invalid Entries"):
+    with st.expander("Invalid entries"):
         st.write(st.session_state["invalid"])
 
 
@@ -333,10 +373,9 @@ if st.session_state.get("invalid"):
 # GUARD: STOP IF NO QANs
 # ------------------------------------------------------------
 qans_df = st.session_state.get("qans_df")
-
 if qans_df is None or qans_df.empty:
-    st.info("Paste QANs above to begin.")
     st.stop()
+
 
 # ------------------------------------------------------------
 # FETCH FROM OFQUAL
@@ -417,16 +456,19 @@ DF_f = DF.loc[mask, :].copy()
 rows = []
 
 for _, r in DF_f.iterrows():
-    scale_type = classify_scale(r["gradingScale"])
-    grades = generate_grades(scale_type)
 
+    # ✅ generate grades for THIS qualification
+    grades = generate_grades_from_scale(r["gradingScale"])
+
+    # ✅ safeguard (your Step 4)
     if not grades:
+        st.warning(
+            f"No grades generated for QAN {r.get('qualificationNumber')}"
+        )
         continue
-
 
     for g in grades:
         new_row = r.copy()
-        # ✅ ensure glh is explicitly carried forward
         new_row["glh"] = r.get("glh")
         new_row["Grade"] = g
         rows.append(new_row)
@@ -526,28 +568,18 @@ DF2["GradeRank"] = DF2["Grade"].map(grade_rank).fillna(99)
 DF2 = DF2.sort_values(["qualificationNumber", "TariffNum", "GradeRank"],
                       ascending=[True, False, True])
 
-# Ensure expected columns exist
-required_cols = ["qualificationNumber", "title", "Grade", "TariffNum"]
+DF3 = DF2[["qualificationNumber", "title", "Grade", "TariffNum"]].copy()
+DF3.columns = ["QAN", "Title", "Grade", "TariffNum"]
 
-missing = [c for c in required_cols if c not in DF2.columns]
-
-if missing:
-    st.error(f"Missing expected columns: {missing}")
-    st.stop()
-
-DF3 = DF2[required_cols].copy()
-
-DF3 = DF3.rename(columns={
-    "qualificationNumber": "QAN",
-    "title": "Title"
-})
 
 # ------------------------------------------------------------
 # COLLAPSE PER QAN
 # ------------------------------------------------------------
 
+
 DF4 = DF3.groupby(["QAN", "Title"], as_index=False).apply(collapse)
 DF4 = DF4.reset_index(drop=True)
+
 
 # ------------------------------------------------------------
 # DISPLAY TARIFF DATA OBJECTS
