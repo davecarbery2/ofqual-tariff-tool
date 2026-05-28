@@ -164,6 +164,7 @@ def split_grades(grade):
 
 
 def calculate_tariff(row):
+
     grade = row["Grade"]
     size_band = row["Size Band"]
 
@@ -171,7 +172,12 @@ def calculate_tariff(row):
         return None
 
     parts = split_grades(grade)
-    base_score = sum(BASE_MAP.get(g, 0) for g in parts)
+
+    if not parts:
+        return None
+
+    # ✅ Mean score (not sum)
+    base_score = sum(BASE_MAP.get(g, 0) for g in parts) / len(parts)
 
     return base_score * size_band
 
