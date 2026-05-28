@@ -290,7 +290,7 @@ if qans_df is not None:
 if st.session_state.get("invalid"):
     st.warning(f"{len(st.session_state['invalid'])} invalid entries removed")
 
-with st.expander("✅ Parsed QANs", expanded=True):
+with st.expander("✅ Inspect Parsed QANs", expanded=False):
     st.dataframe(qans_df, hide_index=True)
 
 col1, col2 = st.columns([4,1])
@@ -325,7 +325,7 @@ if text_input:
     st.session_state["invalid"] = invalid
 
 if st.session_state.get("invalid"):
-    with st.expander("Invalid entries"):
+    with st.expander("Inspect Invalid Entries"):
         st.write(st.session_state["invalid"])
 
 
