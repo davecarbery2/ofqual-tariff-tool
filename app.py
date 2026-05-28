@@ -324,14 +324,6 @@ if text_input:
     st.session_state["qans_df"] = qdf    # <<<<<<<<<< IMPORTANT
     st.session_state["invalid"] = invalid
 
-# SHOW PARSED QANs
-with st.expander("Parsed QANs", expanded=True):
-    qans_df = st.session_state.get("qans_df")
-    if qans_df is not None and not qans_df.empty:
-        st.dataframe(qans_df, hide_index=True)
-    else:
-        st.write("No valid QANs yet.")
-
 if st.session_state.get("invalid"):
     with st.expander("Invalid entries"):
         st.write(st.session_state["invalid"])
