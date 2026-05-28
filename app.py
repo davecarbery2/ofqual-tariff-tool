@@ -373,9 +373,10 @@ if st.session_state.get("invalid"):
 # GUARD: STOP IF NO QANs
 # ------------------------------------------------------------
 qans_df = st.session_state.get("qans_df")
-if qans_df is None or qans_df.empty:
-    st.stop()
 
+if qans_df is None or qans_df.empty:
+    st.info("Paste QANs above to begin.")
+    st.stop()
 
 # ------------------------------------------------------------
 # FETCH FROM OFQUAL
