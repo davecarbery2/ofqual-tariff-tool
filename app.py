@@ -566,15 +566,27 @@ DF2["GradeRank"] = DF2["Grade"].map(grade_rank).fillna(99)
 DF2 = DF2.sort_values(["qualificationNumber", "TariffNum", "GradeRank"],
                       ascending=[True, False, True])
 
-DF3 = DF2[["qualificationNumber", "title", "Grade", "TariffNum"]].copy()
-DF3.columns = ["QAN", "Title", "Grade", "TariffNum"]
+# Ensure expected columns exist
+required_cols = ["qualificationNumber", "title", "Grade", "TariffNum"]
 
+missing = [c for c in required_cols if c not in DF2.columns]
+
+if missing:
+    st.error(f"Missing expected columns: {missing}")
+    st.stop()
+
+DF3 = DF2[required_cols].copy()
+
+DF3 = DF3.rename(columns={
+    "qualificationNumber": "QAN",
+    "title": "Title"
+})
 
 # ------------------------------------------------------------
 # COLLAPSE PER QAN
 # ------------------------------------------------------------
 
-
+st.write("DF3 columns:", DF3.columns)
 DF4 = DF3.groupby(["QAN", "Title"], as_index=False).apply(collapse)
 DF4 = DF4.reset_index(drop=True)
 
