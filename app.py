@@ -140,7 +140,7 @@ def classify_scale(scale):
     if "D*D*D" in scale or "DDD" in scale:
         return "BTEC_COMPOSITE_3"
 
-    if "D*D" in scale or "DD" in scale:
+    if all(x in scale for x in ["PP", "PM", "MM", "DD"]):
         return "BTEC_COMPOSITE_2"
 
     if "D*/D/M/P" in scale or "P/M/D" in scale:
