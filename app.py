@@ -554,10 +554,8 @@ DF3 = DF3.rename(columns={
 # COLLAPSE PER QAN
 # ------------------------------------------------------------
 
-st.write("DF3 columns:", DF3.columns)
 DF4 = DF3.groupby(["QAN", "Title"], as_index=False).apply(collapse)
 DF4 = DF4.reset_index(drop=True)
-
 
 # ------------------------------------------------------------
 # DISPLAY TARIFF DATA OBJECTS
