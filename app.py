@@ -129,7 +129,6 @@ def parse_qans(raw):
 
     return pd.DataFrame({"QANs": dedup}), invalid
 
-
 def classify_scale(scale):
 
     if scale in grade_scales:
@@ -170,6 +169,24 @@ def get_size_band(glh):
             return band
     
     return None
+
+def generate_grades_from_scale(scale):
+    """
+    Extract grades directly from Ofqual grading scale string.
+    Handles formats like:
+    PP/PM/MM/MD/DD/DD*/D*D*
+    """
+
+    if pd.isna(scale):
+        return []
+
+    # Split on common delimiters
+    grades = re.split(r"[\/,\s]+", str(scale))
+
+    # Clean + remove blanks
+    grades = [g.strip() for g in grades if g.strip()]
+
+    return grades
 
 def split_grades(grade):
     """
